@@ -136,10 +136,10 @@ export default function FormComponent() {
   setIsSubmitting(true)
 
   const campaignMap: Record<string, string> = {
-    "Desktop & Laptops": "C100190",
-    Printers: "C100182",
-    Accessories: "C100184",
-    Other: "C100184", // Default campaign ID for "Other"
+    "Desktop & Laptops": "C100003",
+    Printers: "C100003",
+    Accessories: "C100003",
+    Other: "C100003", // Default campaign ID for "Other"
   }
 
   try {
