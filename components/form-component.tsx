@@ -175,10 +175,10 @@ export default function FormComponent() {
     // --- 2. Issue Coupon for Each Selected Interest (or default) ---
     const channelID = "WEB"
     const requestID = "250000012"
-    const programID = "81"
+    const programID = "1002"
 
     for (const interest of interestsToIssue) {
-      const selectedCampaignID = (interest === "Default") ? "C100184" : campaignMap[interest] || "C100184"
+      const selectedCampaignID = (interest === "Default") ? "C100003" : campaignMap[interest] || "C100003"
 
       const couponApiPayload = {
         channelID,
@@ -214,7 +214,7 @@ export default function FormComponent() {
       const referredByCouponPayload = {
         channelID,
         requestID,
-        campaignID: campaignMap[formData.interests[0]] || "C100184", // use first interest's campaign or default
+        campaignID:  "C100003", // use first interest's campaign or default
         issuerMobileNo: formData.referredBy,
         programID,
       }
@@ -287,9 +287,29 @@ return (
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mobile" className="text-sm font-medium text-foreground">
-              Mobile Number <span className="text-destructive">*</span>
-            </Label>
+            <div className="flex items-center gap-1 relative">
+  <Label htmlFor="mobile" className="text-sm font-medium text-foreground">
+    Mobile Number <span className="text-destructive">*</span>
+  </Label>
+
+  <div className="relative group">
+    <span
+      className="text-sm text-gray-500 cursor-pointer"
+      // This will handle tap/focus for mobile
+      onClick={(e) => {
+        const tooltip = e.currentTarget.nextElementSibling;
+        tooltip?.classList.toggle("hidden");
+      }}
+    >
+      ℹ️
+    </span>
+
+    <div className="absolute left-6 top-1/2 transform -translate-y-1/2 hidden bg-gray-800 text-white text-xs rounded py-1 px-2 z-10 w-max">
+      Please enter your WhatsApp number
+    </div>
+  </div>
+</div>
+
             <Input
               id="mobile"
               name="mobile"
