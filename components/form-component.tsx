@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import ThankYou from "@/components/thank-you"
 
 interface FormData {
   name: string
   mobile: string
   email: string
-  interests: string
+  interests: string[]
   ageGroup: string
   occupation: string
   pinCode: string
@@ -34,7 +35,7 @@ export default function FormComponent() {
     name: "",
     mobile: "",
     email: "",
-    interests: "",
+    interests: [],
     ageGroup: "",
     occupation: "",
     pinCode: "",
@@ -45,6 +46,7 @@ export default function FormComponent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isOtherInterestSelected, setIsOtherInterestSelected] = useState(false)
   const [customInterest, setCustomInterest] = useState("")
+  const [submitted, setSubmitted] = useState(false)
 
   const validateField = (name: string, value: string): string | undefined => {
   switch (name) {
@@ -116,7 +118,7 @@ export default function FormComponent() {
   const requiredFields = ["name", "mobile"]
   const requiredValid = requiredFields.every((field) => {
     const value = formData[field as keyof FormData]
-    return value.trim() !== "" && !validateField(field, value)
+   return (Array.isArray(value) ? value.length > 0 : value.trim() !== "") && !validateField(field, value as string)
   })
 
   // Check that no optional field has an active error
@@ -127,108 +129,128 @@ export default function FormComponent() {
 
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    if (!isFormValid()) return
+  if (!isFormValid()) return
 
-    setIsSubmitting(true)
+  setIsSubmitting(true)
 
-    const campaignMap: Record<string, string> = {
-      "Desktop & Laptops": "C100190",
-      Printers: "C100182",
-      Accessories: "C100184",
-      Other: "C100184", // Default campaign ID for "Other"
+  const campaignMap: Record<string, string> = {
+    "Desktop & Laptops": "C100190",
+    Printers: "C100182",
+    Accessories: "C100184",
+    Other: "C100184", // Default campaign ID for "Other"
+  }
+
+  try {
+    console.log("[v0] Submitting form data:", formData)
+
+    // ✅ Fix: handle array interests + custom interest
+    let finalInterests = formData.interests.includes("Other")
+      ? [...formData.interests.filter((i) => i !== "Other"), customInterest]
+      : formData.interests
+
+    // Handle no interests: issue a default coupon
+    const interestsToIssue = finalInterests.length > 0 ? finalInterests : ["Default"]
+
+    const dataToSend = { ...formData, interests: finalInterests }
+
+    // --- 1. Submit to Google Form ---
+    const googleFormResponse = await fetch("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dataToSend),
+    })
+
+    console.log("[v0] Google Form response status:", googleFormResponse.status)
+    const googleFormResult = await googleFormResponse.json()
+    console.log("[v0] Google Form response data:", googleFormResult)
+
+    if (!googleFormResult.success) {
+      console.error("Google Form submission failed:", googleFormResult.error)
+      alert(`Submission failed: ${googleFormResult.error}`)
+      return
     }
 
-    try {
-      console.log("[v0] Submitting form data:", formData)
+    // --- 2. Issue Coupon for Each Selected Interest (or default) ---
+    const channelID = "WEB"
+    const requestID = "250000012"
+    const programID = "81"
 
-      const finalInterests = formData.interests === "Other" ? customInterest : formData.interests
-      const dataToSend = { ...formData, interests: finalInterests }
+    for (const interest of interestsToIssue) {
+      const selectedCampaignID = (interest === "Default") ? "C100184" : campaignMap[interest] || "C100184"
 
-      // --- 1. Submit to Google Form ---\n
-      const googleFormResponse = await fetch("/api/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dataToSend),
-      })
-
-      console.log("[v0] Google Form response status:", googleFormResponse.status)
-      const googleFormResult = await googleFormResponse.json()
-      console.log("[v0] Google Form response data:", googleFormResult)
-
-      if (!googleFormResult.success) {
-        console.error("Google Form submission failed:", googleFormResult.error)
-        alert(`Submission failed: ${googleFormResult.error}`)
-        return
-      }
-
-      // --- 2. Issue Coupon for Main Mobile Number ---\n
-      const selectedCampaignID = campaignMap[formData.interests] || "C100183"
       const couponApiPayload = {
-        channelID: "WEB",
-        requestID: "250000012",
+        channelID,
+        requestID,
         campaignID: selectedCampaignID,
         issuerMobileNo: formData.mobile,
-        programID: "81",
+        programID,
       }
 
-      console.log("[v0] Coupon API payload (main):", couponApiPayload)
+      console.log("[v0] Coupon API payload:", couponApiPayload)
 
-      const couponApiResponse = await fetch("https://test-cms.apeirosai.com/cms/api/v1/issueCoupon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(couponApiPayload),
-      })
+      const couponApiResponse = await fetch(
+        "https://test-cms.apeirosai.com/cms/api/v1/issueCoupon",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(couponApiPayload),
+        },
+      )
 
-      console.log("[v0] Coupon API response status (main):", couponApiResponse.status)
+      console.log("[v0] Coupon API response status:", couponApiResponse.status)
       const couponApiResult = await couponApiResponse.json()
-      console.log("[v0] Coupon API response data (main):", couponApiResult)
+      console.log("[v0] Coupon API response data:", couponApiResult)
 
-      // --- 3. Issue Coupon for Referred By Mobile Number (if provided) ---\n
-      if (formData.referredBy && formData.referredBy.trim() !== "") {
-        const referredByCouponPayload = {
-          channelID: "WEB",
-          requestID: "250000013",
-          campaignID: selectedCampaignID,
-          issuerMobileNo: formData.referredBy,
-          programID: "81",
-        }
+      if (!couponApiResponse.ok || !couponApiResult.data?.couponCode) {
+        console.error("Coupon API submission failed for", interest, ":", couponApiResult.responseMessage || "No coupon code received")
+        // Removed alert for failure to minimize pop-ups
+      }
+    }
 
-        console.log("[v0] Coupon API payload (referred by):", referredByCouponPayload)
+    // --- 3. Issue Coupon for Referred By Mobile Number (if provided) ---
+    if (formData.referredBy && formData.referredBy.trim() !== "") {
+      const referredByCouponPayload = {
+        channelID,
+        requestID,
+        campaignID: campaignMap[formData.interests[0]] || "C100184", // use first interest's campaign or default
+        issuerMobileNo: formData.referredBy,
+        programID,
+      }
 
-        const referredByCouponResponse = await fetch("https://test-cms.apeirosai.com/cms/api/v1/issueCoupon", {
+      console.log("[v0] Coupon API payload (referred by):", referredByCouponPayload)
+
+      const referredByCouponResponse = await fetch(
+        "https://test-cms.apeirosai.com/cms/api/v1/issueCoupon",
+        {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(referredByCouponPayload),
-        })
+        },
+      )
 
-        console.log("[v0] Coupon API response status (referred by):", referredByCouponResponse.status)
-        const referredByCouponResult = await referredByCouponResponse.json()
-        console.log("[v0] Coupon API response data (referred by):", referredByCouponResult)
-      }
-
-      if (couponApiResponse.ok && couponApiResult.data?.couponCode) {
-        console.log(
-          "[v0] Form submission successful! Coupon Code:",
-          couponApiResult.data.couponCode,
-          "Interests:",
-          finalInterests,
-        )
-        alert(`Form submitted successfully! Your coupon code is: ${couponApiResult.data.couponCode}`)
-      } else {
-        console.error("Coupon API submission failed:", couponApiResult.responseMessage || "No coupon code received")
-        alert(`Coupon issuance failed: ${couponApiResult.responseMessage || "No coupon code received"}`)
-      }
-    } catch (error) {
-      console.error("Network error:", error)
-      alert("Network error occurred. Please try again.")
-    } finally {
-      setIsSubmitting(false)
+      console.log("[v0] Coupon API response status (referred by):", referredByCouponResponse.status)
+      const referredByCouponResult = await referredByCouponResponse.json()
+      console.log("[v0] Coupon API response data (referred by):", referredByCouponResult)
     }
-  }
 
-  return (
+    // Show thank you page after successful submission
+    setSubmitted(true)
+  } catch (error) {
+    console.error("Network error:", error)
+    alert("Network error occurred. Please try again.")
+  } finally {
+    setIsSubmitting(false)
+  }
+}
+
+
+  if (submitted) {
+  return <ThankYou />
+}
+
+return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
         <div className="text-center mb-4">
@@ -311,28 +333,30 @@ export default function FormComponent() {
             <Label htmlFor="interests" className="text-sm font-medium text-foreground">
               Interests <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
-            <Select
-              name="interests"
-              value={formData.interests}
-              onValueChange={(value) => handleSelectChange("interests", value)}
-            >
-              <SelectTrigger
-                className={cn(
-                  "h-12 text-base transition-colors text-black",
-                  errors.interests
-                    ? "border-destructive focus-visible:ring-destructive"
-                    : "border-border focus-visible:ring-ring",
-                )}
-              >
-                <SelectValue placeholder="Select your interests" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Desktop & Laptops">Desktop & Laptops</SelectItem>
-                <SelectItem value="Printers">Printers</SelectItem>
-                <SelectItem value="Accessories">Accessories</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
-              </SelectContent>
-            </Select>
+           <div className="flex flex-col gap-2">
+              {["Desktop & Laptops", "Printers", "Accessories", "Other"].map((option) => (
+                <label key={option} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.interests.includes(option)}
+                    onChange={(e) => {
+                      setFormData((prev) => {
+                        const newInterests = e.target.checked
+                          ? [...prev.interests, option]
+                          : prev.interests.filter((i) => i !== option)
+                        return { ...prev, interests: newInterests }
+                      })
+
+                      // Handle custom interest toggle for "Other"
+                      if (option === "Other") setIsOtherInterestSelected(e.target.checked)
+                    }}
+                    className="h-4 w-4"
+                  />
+                  {option}
+                </label>
+              ))}
+            </div>
+
             {isOtherInterestSelected && (
               <Input
                 id="customInterest"
@@ -349,6 +373,7 @@ export default function FormComponent() {
                 placeholder="Enter your interest"
               />
             )}
+
             {errors.interests && <p className="text-destructive text-sm">{errors.interests}</p>}
           </div>
 
