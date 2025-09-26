@@ -47,25 +47,40 @@ export default function FormComponent() {
   const [customInterest, setCustomInterest] = useState("")
 
   const validateField = (name: string, value: string): string | undefined => {
-    switch (name) {
-      case "name":
-        if (value.trim() === "") return "Full Name is required"
-        if (!/^[A-Za-z\\s]+$/.test(value)) return "Full Name can only contain letters and spaces"
-        return undefined
-      case "mobile":
-        if (value === "") return "Mobile number is required"
-        if (!/^[6-9]\\d{9}$/.test(value)) return "Enter valid 10-digit mobile number starting with 6-9"
-        return undefined
-      case "referredBy":
-        if (value !== "" && !/^[6-9]\\d{9}$/.test(value)) return "Enter valid 10-digit mobile number starting with 6-9"
-        return undefined
-      case "pinCode":
-        if (value !== "" && !/^\\d{6}$/.test(value)) return "Enter a valid 6-digit PIN code"
-        return undefined
-      default:
-        return undefined
-    }
+  switch (name) {
+    case "name":
+      if (value.trim() === "") return "Full Name is required"
+      if (!/^[A-Za-z\s]+$/.test(value))
+        return "Full Name can only contain letters and spaces"
+      return undefined
+
+    case "mobile":
+      if (value.trim() === "") return "Mobile number is required"
+      if (!/^[6-9]\d{9}$/.test(value))
+        return "Enter a valid 10-digit mobile number starting with 6-9"
+      return undefined
+
+    case "email":
+      if (value !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+        return "Enter a valid email address"
+      return undefined
+
+    case "pinCode":
+      if (value !== "" && !/^\d{6}$/.test(value))
+        return "Enter a valid 6-digit PIN code"
+      return undefined
+
+    case "referredBy":
+      if (value !== "" && !/^[6-9]\d{9}$/.test(value))
+        return "Enter a valid 10-digit mobile number starting with 6-9"
+      return undefined
+
+    // interests, ageGroup, occupation are fully optional
+    default:
+      return undefined
   }
+}
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -97,12 +112,19 @@ export default function FormComponent() {
   }
 
   const isFormValid = () => {
-    const requiredFields = ["name", "mobile"]
-    return requiredFields.every((field) => {
-      const value = formData[field as keyof FormData]
-      return value.trim() !== "" && !validateField(field, value)
-    })
-  }
+  // Check required fields first
+  const requiredFields = ["name", "mobile"]
+  const requiredValid = requiredFields.every((field) => {
+    const value = formData[field as keyof FormData]
+    return value.trim() !== "" && !validateField(field, value)
+  })
+
+  // Check that no optional field has an active error
+  const noValidationErrors = Object.values(errors).every((err) => !err)
+
+  return requiredValid && noValidationErrors
+}
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -214,15 +236,15 @@ export default function FormComponent() {
             <Image src="/hplogo.png" alt="HP World Logo" width={40} height={40} className="rounded-full" />
             <div>
               <h1 className="text-2xl font-bold text-gray-800">HP World</h1>
-              <p className="text-sm text-gray-500 -mt-1">by GEONET</p>
+              <p className="text-sm text-gray-500 -mt-1">- GEONET IT Mall</p>
             </div>
           </div>
-          <p className="text-gray-600 mb-0">Sign up and get a gift voucher of Upto Rs 5000</p>
+          <p className="text-gray-600 mb-0">Sign up and get a Gift Voucher of upto Rs&nbsp;1000</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm font-medium text-black">
+            <Label htmlFor="name" className="text-sm font-medium text-foreground">
               Full Name <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -243,7 +265,7 @@ export default function FormComponent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mobile" className="text-sm font-medium text-black">
+            <Label htmlFor="mobile" className="text-sm font-medium text-foreground">
               Mobile Number <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -265,8 +287,8 @@ export default function FormComponent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium text-black">
-              Email Address <span className="text-xs">(Optional)</span>
+            <Label htmlFor="email" className="text-sm font-medium text-foreground">
+              Email Address <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
             <Input
               id="email"
@@ -282,12 +304,12 @@ export default function FormComponent() {
               )}
               placeholder="Enter your email address"
             />
-            {errors.email && <p className="text-destructive text-sm">{errors.email}</p>}\n{" "}
+            {errors.email && <p className="text-destructive text-sm">{errors.email}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="interests" className="text-sm font-medium text-black">
-              Interests <span className="text-xs">(Optional)</span>
+            <Label htmlFor="interests" className="text-sm font-medium text-foreground">
+              Interests <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
             <Select
               name="interests"
@@ -331,8 +353,8 @@ export default function FormComponent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ageGroup" className="text-sm font-medium text-black">
-              Age Group <span className="text-xs\">(Optional)</span>
+            <Label htmlFor="ageGroup" className="text-sm font-medium text-foreground">
+              Age Group <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
             <Select
               name="ageGroup"
@@ -353,8 +375,8 @@ export default function FormComponent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="occupation" className="text-sm font-medium text-black">
-              Occupation <span className="text-xs\">(Optional)</span>
+            <Label htmlFor="occupation" className="text-sm font-medium text-foreground">
+              Occupation <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
             <Input
               id="occupation"
@@ -368,8 +390,8 @@ export default function FormComponent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="pinCode" className="text-sm font-medium text-black">
-              PIN Code <span className="text-xs\">(Optional)</span>
+            <Label htmlFor="pinCode" className="text-sm font-medium text-foreground">
+              PIN Code <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
             <Input
               id="pinCode"
@@ -390,8 +412,8 @@ export default function FormComponent() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="referredBy" className="text-sm font-medium text-black">
-              Referred By <span className="text-xs\">(Optional)</span>
+            <Label htmlFor="referredBy" className="text-sm font-medium text-foreground">
+              Referred By <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
             <Input
               id="referredBy"

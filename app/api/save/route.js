@@ -22,10 +22,18 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "Invalid mobile number format" }, { status: 400 })
     }
 
-    if (email && email.trim() !== "") {
-      const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/
+     if (email && email.trim() !== "") {
+      // Use single backslashes in regex literal. The previous code had double-escaped backslashes which is wrong.
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(email)) {
         return NextResponse.json({ success: false, error: "Invalid email format" }, { status: 400 })
+      }
+    }
+
+    // Optional: validate pinCode if provided
+    if (pinCode && pinCode.trim() !== "") {
+      if (!/^\d{6}$/.test(pinCode)) {
+        return NextResponse.json({ success: false, error: "Invalid PIN code format" }, { status: 400 })
       }
     }
 
