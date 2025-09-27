@@ -214,7 +214,7 @@ export default function FormComponent() {
       const referredByCouponPayload = {
         channelID,
         requestID,
-        campaignID:  "C100003", // use first interest's campaign or default
+        campaignID:  "C100002", // use first interest's campaign or default
         issuerMobileNo: formData.referredBy,
         programID,
       }
@@ -222,7 +222,7 @@ export default function FormComponent() {
       console.log("[v0] Coupon API payload (referred by):", referredByCouponPayload)
 
       const referredByCouponResponse = await fetch(
-        "https://test-cms.apeirosai.com/cms/api/v1/issueCoupon",
+        "https://cms.apeirosai.com/cms/api/v1/issueCoupon",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
