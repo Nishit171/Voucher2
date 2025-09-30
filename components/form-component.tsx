@@ -3,6 +3,7 @@
 import type React from "react"
 import Image from "next/image"
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,6 +32,9 @@ interface FormErrors {
 }
 
 export default function FormComponent() {
+  const searchParams = useSearchParams()
+  const campaignID = searchParams.get("campaignId") || "C100003" // Default campaign ID if not provided in URL
+  
   const [formData, setFormData] = useState<FormData>({
     name: "",
     mobile: "",
@@ -49,47 +53,44 @@ export default function FormComponent() {
   const [submitted, setSubmitted] = useState(false)
 
   const validateField = (name: string, value: string): string | undefined => {
-  switch (name) {
-    case "name":
-      if (value.trim() === "") return "Full Name is required"
-      if (!/^[A-Za-z\s]+$/.test(value))
-        return "Full Name can only contain letters and spaces"
-      return undefined
+    switch (name) {
+      case "name":
+        if (value.trim() === "") return "Full Name is required"
+        if (!/^[A-Za-z\s]+$/.test(value))
+          return "Full Name can only contain letters and spaces"
+        return undefined
 
-    case "mobile":
-      if (value.trim() === "") return "Mobile number is required"
-      if (!/^[6-9]\d{9}$/.test(value))
-        return "Enter a valid 10-digit mobile number starting with 6-9"
-      return undefined
+      case "mobile":
+        if (value.trim() === "") return "Mobile number is required"
+        if (!/^[6-9]\d{9}$/.test(value))
+          return "Enter a valid 10-digit mobile number starting with 6-9"
+        return undefined
 
-    case "email":
-      if (value !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
-        return "Enter a valid email address"
-      return undefined
+      case "email":
+        if (value !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+          return "Enter a valid email address"
+        return undefined
 
-    case "pinCode":
-      if (value !== "" && !/^\d{6}$/.test(value))
-        return "Enter a valid 6-digit PIN code"
-      return undefined
+      case "pinCode":
+        if (value !== "" && !/^\d{6}$/.test(value))
+          return "Enter a valid 6-digit PIN code"
+        return undefined
 
-    case "referredBy":
-      if (value !== "" && !/^[6-9]\d{9}$/.test(value))
-        return "Enter a valid 10-digit mobile number starting with 6-9"
-      return undefined
+      case "referredBy":
+        if (value !== "" && !/^[6-9]\d{9}$/.test(value))
+          return "Enter a valid 10-digit mobile number starting with 6-9"
+        return undefined
 
-    // interests, ageGroup, occupation are fully optional
-    default:
-      return undefined
+      default:
+        return undefined
+    }
   }
-}
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
 
     if (name === "customInterest") {
       setCustomInterest(value)
-      // No validation for custom interest here, it's handled on submit if needed
       return
     }
 
@@ -105,7 +106,7 @@ export default function FormComponent() {
     if (name === "interests") {
       setIsOtherInterestSelected(value === "Other")
       if (value !== "Other") {
-        setCustomInterest("") // Clear custom interest if a predefined option is selected
+        setCustomInterest("")
       }
     }
 
@@ -114,143 +115,122 @@ export default function FormComponent() {
   }
 
   const isFormValid = () => {
-  // Check required fields first
-  const requiredFields = ["name", "mobile"]
-  const requiredValid = requiredFields.every((field) => {
-    const value = formData[field as keyof FormData]
-   return (Array.isArray(value) ? value.length > 0 : value.trim() !== "") && !validateField(field, value as string)
-  })
-
-  // Check that no optional field has an active error
-  const noValidationErrors = Object.values(errors).every((err) => !err)
-
-  return requiredValid && noValidationErrors
-}
-
-
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-
-  if (!isFormValid()) return
-
-  setIsSubmitting(true)
-
-  const campaignMap: Record<string, string> = {
-    "Desktop & Laptops": "C100003",
-    Printers: "C100003",
-    Accessories: "C100003",
-    Other: "C100003", // Default campaign ID for "Other"
-  }
-
-  try {
-    console.log("[v0] Submitting form data:", formData)
-
-    // ✅ Fix: handle array interests + custom interest
-    let finalInterests = formData.interests.includes("Other")
-      ? [...formData.interests.filter((i) => i !== "Other"), customInterest]
-      : formData.interests
-
-    // Handle no interests: issue a default coupon
-    const interestsToIssue = finalInterests.length > 0 ? finalInterests : ["Default"]
-
-    const dataToSend = { ...formData, interests: finalInterests }
-
-    // --- 1. Submit to Google Form ---
-    const googleFormResponse = await fetch("/api/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dataToSend),
+    const requiredFields = ["name", "mobile"]
+    const requiredValid = requiredFields.every((field) => {
+      const value = formData[field as keyof FormData]
+      return (Array.isArray(value) ? value.length > 0 : value.trim() !== "") && !validateField(field, value as string)
     })
 
-    console.log("[v0] Google Form response status:", googleFormResponse.status)
-    const googleFormResult = await googleFormResponse.json()
-    console.log("[v0] Google Form response data:", googleFormResult)
-
-    if (!googleFormResult.success) {
-      console.error("Google Form submission failed:", googleFormResult.error)
-      alert(`Submission failed: ${googleFormResult.error}`)
-      return
-    }
-
-    // --- 2. Issue Coupon for Each Selected Interest (or default) ---
-    const channelID = "WEB"
-    const requestID = "250000012"
-    const programID = "1002"
-
-    for (const interest of interestsToIssue) {
-      const selectedCampaignID = (interest === "Default") ? "C100003" : campaignMap[interest] || "C100003"
-
-      const couponApiPayload = {
-        channelID,
-        requestID,
-        campaignID: selectedCampaignID,
-        issuerMobileNo: formData.mobile,
-        programID,
-      }
-
-      console.log("[v0] Coupon API payload:", couponApiPayload)
-
-      const couponApiResponse = await fetch(
-        "https://cms.apeirosai.com/cms/api/v1/issueCoupon",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(couponApiPayload),
-        },
-      )
-
-      console.log("[v0] Coupon API response status:", couponApiResponse.status)
-      const couponApiResult = await couponApiResponse.json()
-      console.log("[v0] Coupon API response data:", couponApiResult)
-
-      if (!couponApiResponse.ok || !couponApiResult.data?.couponCode) {
-        console.error("Coupon API submission failed for", interest, ":", couponApiResult.responseMessage || "No coupon code received")
-        // Removed alert for failure to minimize pop-ups
-      }
-    }
-
-    // --- 3. Issue Coupon for Referred By Mobile Number (if provided) ---
-    if (formData.referredBy && formData.referredBy.trim() !== "") {
-      const referredByCouponPayload = {
-        channelID,
-        requestID,
-        campaignID:  "C100002", // use first interest's campaign or default
-        issuerMobileNo: formData.referredBy,
-        programID,
-      }
-
-      console.log("[v0] Coupon API payload (referred by):", referredByCouponPayload)
-
-      const referredByCouponResponse = await fetch(
-        "https://cms.apeirosai.com/cms/api/v1/issueCoupon",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(referredByCouponPayload),
-        },
-      )
-
-      console.log("[v0] Coupon API response status (referred by):", referredByCouponResponse.status)
-      const referredByCouponResult = await referredByCouponResponse.json()
-      console.log("[v0] Coupon API response data (referred by):", referredByCouponResult)
-    }
-
-    // Show thank you page after successful submission
-    setSubmitted(true)
-  } catch (error) {
-    console.error("Network error:", error)
-    alert("Network error occurred. Please try again.")
-  } finally {
-    setIsSubmitting(false)
+    const noValidationErrors = Object.values(errors).every((err) => !err)
+    return requiredValid && noValidationErrors
   }
-}
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!isFormValid()) return
+
+    setIsSubmitting(true)
+
+    try {
+      console.log("[v0] Submitting form data:", formData)
+
+      let finalInterests = formData.interests.includes("Other")
+        ? [...formData.interests.filter((i) => i !== "Other"), customInterest]
+        : formData.interests
+
+      const interestsToIssue = finalInterests.length > 0 ? finalInterests : ["Default"]
+
+      const dataToSend = { ...formData, interests: finalInterests }
+
+      const googleFormResponse = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSend),
+      })
+
+      console.log("[v0] Google Form response status:", googleFormResponse.status)
+      const googleFormResult = await googleFormResponse.json()
+      console.log("[v0] Google Form response data:", googleFormResult)
+
+      if (!googleFormResult.success) {
+        console.error("Google Form submission failed:", googleFormResult.error)
+        alert(`Submission failed: ${googleFormResult.error}`)
+        return
+      }
+
+      const channelID = "WEB"
+      const requestID = "250000012"
+      const programID = "1002"
+
+      for (const interest of interestsToIssue) {
+        const couponApiPayload = {
+          channelID,
+          requestID,
+          campaignID, // Use campaignID from URL
+          issuerMobileNo: formData.mobile,
+          programID,
+        }
+
+        console.log("[v0] Coupon API payload:", couponApiPayload)
+
+        const couponApiResponse = await fetch(
+          "https://cms.apeirosai.com/cms/api/v1/issueCoupon",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(couponApiPayload),
+          },
+        )
+
+        console.log("[v0] Coupon API response status:", couponApiResponse.status)
+        const couponApiResult = await couponApiResponse.json()
+        console.log("[v0] Coupon API response data:", couponApiResult)
+
+        if (!couponApiResponse.ok || !couponApiResult.data?.couponCode) {
+          console.error("Coupon API submission failed for", interest, ":", couponApiResult.responseMessage || "No coupon code received")
+        }
+      }
+
+      if (formData.referredBy && formData.referredBy.trim() !== "") {
+        const referredByCouponPayload = {
+          channelID,
+          requestID,
+          campaignID, // Use campaignID from URL
+          issuerMobileNo: formData.referredBy,
+          programID,
+        }
+
+        console.log("[v0] Coupon API payload (referred by):", referredByCouponPayload)
+
+        const referredByCouponResponse = await fetch(
+          "https://cms.apeirosai.com/cms/api/v1/issueCoupon",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(referredByCouponPayload),
+          },
+        )
+
+        console.log("[v0] Coupon API response status (referred by):", referredByCouponResponse.status)
+        const referredByCouponResult = await referredByCouponResponse.json()
+        console.log("[v0] Coupon API response data (referred by):", referredByCouponResult)
+      }
+
+      setSubmitted(true)
+    } catch (error) {
+      console.error("Network error:", error)
+      alert("Network error occurred. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   if (submitted) {
-  return <ThankYou />
-}
+    return <ThankYou />
+  }
 
-return (
+  return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
         <div className="text-center mb-4">
@@ -288,28 +268,24 @@ return (
 
           <div className="space-y-2">
             <div className="flex items-center gap-1 relative">
-  <Label htmlFor="mobile" className="text-sm font-medium text-foreground">
-    Mobile Number <span className="text-destructive">*</span>
-  </Label>
-
-  <div className="relative group">
-    <span
-      className="text-sm text-gray-500 cursor-pointer"
-      // This will handle tap/focus for mobile
-      onClick={(e) => {
-        const tooltip = e.currentTarget.nextElementSibling;
-        tooltip?.classList.toggle("hidden");
-      }}
-    >
-      ℹ️
-    </span>
-
-    <div className="absolute left-6 top-1/2 transform -translate-y-1/2 hidden bg-gray-800 text-white text-xs rounded py-1 px-2 z-10 w-max">
-      Please enter your WhatsApp number
-    </div>
-  </div>
-</div>
-
+              <Label htmlFor="mobile" className="text-sm font-medium text-foreground">
+                Mobile Number <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative group">
+                <span
+                  className="text-sm text-gray-500 cursor-pointer"
+                  onClick={(e) => {
+                    const tooltip = e.currentTarget.nextElementSibling
+                    tooltip?.classList.toggle("hidden")
+                  }}
+                >
+                  ℹ️
+                </span>
+                <div className="absolute left-6 top-1/2 transform -translate-y-1/2 hidden bg-gray-800 text-white text-xs rounded py-1 px-2 z-10 w-max">
+                  Please enter your WhatsApp number
+                </div>
+              </div>
+            </div>
             <Input
               id="mobile"
               name="mobile"
@@ -353,7 +329,7 @@ return (
             <Label htmlFor="interests" className="text-sm font-medium text-foreground">
               Interests <span className="text-xs text-gray-500">(Optional)</span>
             </Label>
-           <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               {["Desktop & Laptops", "Printers", "Accessories", "Other"].map((option) => (
                 <label key={option} className="flex items-center gap-2">
                   <input
@@ -366,8 +342,6 @@ return (
                           : prev.interests.filter((i) => i !== option)
                         return { ...prev, interests: newInterests }
                       })
-
-                      // Handle custom interest toggle for "Other"
                       if (option === "Other") setIsOtherInterestSelected(e.target.checked)
                     }}
                     className="h-4 w-4"
@@ -376,7 +350,6 @@ return (
                 </label>
               ))}
             </div>
-
             {isOtherInterestSelected && (
               <Input
                 id="customInterest"
@@ -393,7 +366,6 @@ return (
                 placeholder="Enter your interest"
               />
             )}
-
             {errors.interests && <p className="text-destructive text-sm">{errors.interests}</p>}
           </div>
 
